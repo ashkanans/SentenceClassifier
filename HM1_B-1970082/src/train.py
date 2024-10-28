@@ -5,10 +5,11 @@ import torch
 import torch.optim as optim
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
+
 from model import LSTMClassifier
 
 
-# Simple Tokenizer and Vocabulary Builder
+# Simple Tokenizer with UNK handling
 class SimpleTokenizer:
     def __init__(self):
         self.vocab = {}
@@ -17,7 +18,7 @@ class SimpleTokenizer:
 
     def build_vocab(self, texts):
         words = set(word for text in texts for word in text.split())
-        self.vocab = {word: idx + 2 for idx, word in enumerate(words)}
+        self.vocab = {word: idx + 2 for idx, word in enumerate(words)}  # +2 to reserve 0 for PAD and 1 for UNK
         self.vocab[self.pad_token] = 0
         self.vocab[self.unk_token] = 1
 
@@ -65,14 +66,15 @@ def train_model():
     # Load data
     train_texts, train_labels = load_data('../data/train-taskA.jsonl')
 
-    # Initialize simple tokenizer
+    # Initialize simple tokenizer and build vocab from training data only
     tokenizer = SimpleTokenizer()
     tokenizer.build_vocab(train_texts)
 
+    # Save the vocabulary to a file for evaluation use
     with open('vocab.pkl', 'wb') as f:
         pickle.dump(tokenizer.vocab, f)
 
-    # Prepare DataLoaders
+    # Prepare DataLoader
     train_dataset = TextDataset(train_texts, train_labels, tokenizer, max_len)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
@@ -101,7 +103,9 @@ def train_model():
         accuracy = correct_predictions / len(train_dataset)
         print(f'Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / len(train_loader)}, Accuracy: {accuracy:.4f}')
 
+    # Save the model after training
     torch.save(model.state_dict(), 'lstm_model.pth')
+
 
 # Run training
 if __name__ == "__main__":

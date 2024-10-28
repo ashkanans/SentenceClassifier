@@ -1,11 +1,11 @@
-import json
 import pickle
 
 import torch
+from sklearn.metrics import accuracy_score
 from torch.utils.data import DataLoader
+
 from model import LSTMClassifier
 from train import TextDataset, SimpleTokenizer, load_data
-from sklearn.metrics import accuracy_score
 
 
 # Load the trained model
@@ -44,12 +44,13 @@ if __name__ == "__main__":
     # Load test data
     test_texts, test_labels = load_data('../data/test-news-taskA.jsonl')  # Change for other test sets as needed
 
+    # Load the saved vocabulary for consistent encoding
     with open('vocab.pkl', 'rb') as f:
         vocab = pickle.load(f)
 
-    # Initialize tokenizer
+    # Initialize tokenizer and set vocabulary to loaded vocab
     tokenizer = SimpleTokenizer()
-    tokenizer.vocab = vocab
+    tokenizer.vocab = vocab  # Use the loaded vocabulary instead of building a new one
 
     # Prepare DataLoader
     test_dataset = TextDataset(test_texts, test_labels, tokenizer, max_len)
