@@ -6,7 +6,7 @@ import torch.optim as optim
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
-from model import LSTMClassifier
+from model import LSTMClassifier  # Uses the updated LSTMClassifier
 
 
 # Simple Tokenizer with UNK handling
@@ -55,22 +55,23 @@ def load_data(filepath):
 
 # Main training function
 def train_model():
-    # Parameters
+    # Hyperparameters and configurations
     embedding_dim = 100
     hidden_dim = 128
     output_dim = 2  # binary classification
     batch_size = 32
     num_epochs = 10
     max_len = 50
+    learning_rate = 0.001
 
-    # Load data
+    # Load training data
     train_texts, train_labels = load_data('../data/train-taskA.jsonl')
 
-    # Initialize simple tokenizer and build vocab from training data only
+    # Initialize tokenizer and build vocabulary
     tokenizer = SimpleTokenizer()
     tokenizer.build_vocab(train_texts)
 
-    # Save the vocabulary to a file for evaluation use
+    # Save the vocabulary for consistent encoding in evaluation
     with open('vocab.pkl', 'wb') as f:
         pickle.dump(tokenizer.vocab, f)
 
@@ -78,17 +79,26 @@ def train_model():
     train_dataset = TextDataset(train_texts, train_labels, tokenizer, max_len)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
-    # Initialize model
-    model = LSTMClassifier(len(tokenizer.vocab), embedding_dim, hidden_dim, output_dim,
-                           padding_idx=tokenizer.vocab[tokenizer.pad_token], bidirectional=True)
+    # Initialize model with the new architecture
+    model = LSTMClassifier(
+        vocab_size=len(tokenizer.vocab),
+        embedding_dim=embedding_dim,
+        hidden_dim=hidden_dim,
+        output_dim=output_dim,
+        padding_idx=tokenizer.vocab[tokenizer.pad_token],
+        bidirectional=True
+    )
+
+    # Use CrossEntropyLoss and Adam optimizer with weight decay for regularization
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters())
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
 
     # Training loop
     for epoch in range(num_epochs):
         model.train()
         epoch_loss = 0
         correct_predictions = 0
+
         for inputs, labels in train_loader:
             optimizer.zero_grad()
             outputs = model(inputs)
@@ -96,14 +106,16 @@ def train_model():
             loss.backward()
             optimizer.step()
 
+            # Accumulate loss and accuracy
             epoch_loss += loss.item()
             predictions = outputs.argmax(dim=1)
             correct_predictions += (predictions == labels).sum().item()
 
+        # Calculate epoch accuracy
         accuracy = correct_predictions / len(train_dataset)
-        print(f'Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / len(train_loader)}, Accuracy: {accuracy:.4f}')
+        print(f'Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / len(train_loader):.4f}, Accuracy: {accuracy:.4f}')
 
-    # Save the model after training
+    # Save the trained model
     torch.save(model.state_dict(), 'lstm_model.pth')
 
 
