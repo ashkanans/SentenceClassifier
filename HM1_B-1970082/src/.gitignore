@@ -54,3 +54,6 @@ Thumbs.db
 *.json
 *.pickle
 *.pkl
+
+*.bin
+*.zip
