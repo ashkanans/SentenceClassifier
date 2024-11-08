@@ -78,8 +78,11 @@ def save_training_metrics(metrics, save_path):
         json.dump(metrics, f, indent=4)
 
 
-def train_model(embedding_dim=100, hidden_dim=128, output_dim=2, batch_size=32, num_epochs=10, max_len=50,
-                learning_rate=0.001, weight_decay=1e-5, patience=3, model_save_path='best_lstm_model.pth'):
+def train_model(embedding_dim=100, hidden_dim=128, num_layers=1, batch_size=32, num_epochs=10, max_len=50,
+                learning_rate=0.001, weight_decay=1e-5, dropout_rate=0.1, bidirectional=True,
+                activation_function='ReLU', gradient_clipping=1.0, optimizer_type='Adam',
+                patience=3, model_save_path='best_lstm_model.pth', output_dim=2):  # added output_dim here
+
     # Load and split data
     train_texts, train_labels = load_data('../data/train-taskA.jsonl')
     train_texts, val_texts, train_labels, val_labels = train_test_split(train_texts, train_labels, test_size=0.1)
@@ -101,14 +104,22 @@ def train_model(embedding_dim=100, hidden_dim=128, output_dim=2, batch_size=32, 
         vocab_size=len(tokenizer.vocab),
         embedding_dim=embedding_dim,
         hidden_dim=hidden_dim,
-        output_dim=output_dim,
+        output_dim=output_dim,  # ensure this uses the passed parameter
+        num_layers=num_layers,
+        dropout=dropout_rate if num_layers > 1 else 0,
         padding_idx=tokenizer.vocab[tokenizer.pad_token],
-        bidirectional=True
+        bidirectional=bidirectional
     )
 
-    # Define loss function, optimizer, and learning rate scheduler
+    # Define loss function
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+
+    # Select optimizer
+    if optimizer_type == 'Adam':
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    elif optimizer_type == 'SGD':
+        optimizer = optim.SGD(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=1, verbose=True)
 
     # Early stopping parameters
@@ -128,7 +139,8 @@ def train_model(embedding_dim=100, hidden_dim=128, output_dim=2, batch_size=32, 
             loss = criterion(outputs, labels)
             loss.backward()
 
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            # Gradient clipping
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=gradient_clipping)
             optimizer.step()
 
             train_loss += loss.item()
@@ -170,16 +182,22 @@ def train_model(embedding_dim=100, hidden_dim=128, output_dim=2, batch_size=32, 
         # Check for best model based on validation accuracy
         if val_accuracy > best_model_info["validation_accuracy"]:
             best_model_info.update({
-                "name": f"emb{embedding_dim}_hid{hidden_dim}_ep{num_epochs}_len{max_len}_bs{batch_size}_lr{learning_rate}_wd{weight_decay}",
+                "name": f"emb{embedding_dim}_hid{hidden_dim}_layers{num_layers}_ep{num_epochs}_len{max_len}_bs{batch_size}_lr{learning_rate}_wd{weight_decay}_dropout{dropout_rate}_bidirectional{bidirectional}",
                 "path": model_save_path,
                 "hyperparams": {
                     "embedding_dim": embedding_dim,
                     "hidden_dim": hidden_dim,
+                    "num_layers": num_layers,
                     "num_epochs": num_epochs,
                     "max_len": max_len,
                     "batch_size": batch_size,
                     "learning_rate": learning_rate,
-                    "weight_decay": weight_decay
+                    "weight_decay": weight_decay,
+                    "dropout_rate": dropout_rate,
+                    "bidirectional": bidirectional,
+                    "activation_function": activation_function,
+                    "gradient_clipping": gradient_clipping,
+                    "optimizer": optimizer_type
                 },
                 "validation_accuracy": val_accuracy
             })
@@ -205,34 +223,46 @@ def train_model(embedding_dim=100, hidden_dim=128, output_dim=2, batch_size=32, 
 
 
 def process_training(params):
-    embedding_dim, hidden_dim, num_epochs, max_len, batch_size, learning_rate, weight_decay = params
+    embedding_dim, hidden_dim, num_layers, batch_size, num_epochs, max_len, learning_rate, weight_decay, dropout_rate, bidirectional, activation_function, gradient_clipping, optimizer_type, output_dim = params  # added output_dim
 
     # Create a unique directory for each model
-    model_dir = os.path.join(MODELS_DIR, f'emb{embedding_dim}_hid{hidden_dim}_ep{num_epochs}_len{max_len}_'
-                                         f'bs{batch_size}_lr{learning_rate}_wd{weight_decay}')
+    model_dir = os.path.join(MODELS_DIR,
+                             f'emb{embedding_dim}_hid{hidden_dim}_layers{num_layers}_ep{num_epochs}_len{max_len}_bs{batch_size}_lr{learning_rate}_wd{weight_decay}_dropout{dropout_rate}_bidirectional{bidirectional}')
     os.makedirs(model_dir, exist_ok=True)
 
     # Save hyperparameters
     save_hyperparams({
         'embedding_dim': embedding_dim,
         'hidden_dim': hidden_dim,
+        'num_layers': num_layers,
         'num_epochs': num_epochs,
         'max_len': max_len,
         'batch_size': batch_size,
         'learning_rate': learning_rate,
-        'weight_decay': weight_decay
+        'weight_decay': weight_decay,
+        'dropout_rate': dropout_rate,
+        'bidirectional': bidirectional,
+        'activation_function': activation_function,
+        'gradient_clipping': gradient_clipping,
+        'optimizer': optimizer_type
     }, model_dir)
 
     # Train the model
     train_model(
         embedding_dim=embedding_dim,
         hidden_dim=hidden_dim,
-        output_dim=2,
+        num_layers=num_layers,
+        output_dim=output_dim,  # pass output_dim here
         batch_size=batch_size,
         num_epochs=num_epochs,
         max_len=max_len,
         learning_rate=learning_rate,
         weight_decay=weight_decay,
+        dropout_rate=dropout_rate,
+        bidirectional=bidirectional,
+        activation_function=activation_function,
+        gradient_clipping=gradient_clipping,
+        optimizer_type=optimizer_type,
         model_save_path=model_dir
     )
 
@@ -240,25 +270,39 @@ def process_training(params):
 if __name__ == "__main__":
     # Hyperparameter values to test
     hyperparameter_values = {
-        'embedding_dim': [50, 100, 200],
-        'hidden_dim': [64, 128, 256],
-        'num_epochs': [5, 10],
-        'max_len': [30, 50],
-        'batch_size': [16, 32],
-        'learning_rate': [0.0001, 0.001],
-        'weight_decay': [0, 1e-5]
+        'embedding_dim': [50, 100, 200],  # Different embedding sizes
+        'hidden_dim': [64, 128, 256, 512],  # Expanded hidden dimensions for more flexibility
+        'num_layers': [1, 2, 3, 4],  # Increased depth of LSTM layers
+        'num_epochs': [5, 10, 15],  # Additional training epochs
+        'max_len': [30, 50, 100],  # Wider range of maximum sequence lengths
+        'batch_size': [16, 32, 64],  # Larger batch sizes
+        'learning_rate': [0.0001, 0.001, 0.01],  # Broader range of learning rates
+        'weight_decay': [0, 1e-5, 1e-4],  # More options for weight decay
+        'dropout_rate': [0.1, 0.2, 0.3, 0.4],  # Additional dropout rates
+        'bidirectional': [True, False],  # Bidirectional LSTM option
+        'activation_function': ['ReLU', 'Tanh', 'LeakyReLU'],  # Different activation functions
+        'gradient_clipping': [0.5, 1.0, 2.0],  # Different values for gradient clipping
+        'optimizer': ['Adam', 'SGD', 'RMSprop']  # Additional optimizer option
     }
 
     # Prepare combinations for multiprocessing
     params_list = [
-        (embedding_dim, hidden_dim, num_epochs, max_len, batch_size, learning_rate, weight_decay)
+        (embedding_dim, hidden_dim, num_layers, batch_size, num_epochs, max_len, learning_rate, weight_decay,
+         dropout_rate, bidirectional, activation_function, gradient_clipping, optimizer_type, 2)
+        # added fixed output_dim
         for embedding_dim in hyperparameter_values['embedding_dim']
         for hidden_dim in hyperparameter_values['hidden_dim']
+        for num_layers in hyperparameter_values['num_layers']
         for num_epochs in hyperparameter_values['num_epochs']
         for max_len in hyperparameter_values['max_len']
         for batch_size in hyperparameter_values['batch_size']
         for learning_rate in hyperparameter_values['learning_rate']
         for weight_decay in hyperparameter_values['weight_decay']
+        for dropout_rate in hyperparameter_values['dropout_rate']
+        for bidirectional in hyperparameter_values['bidirectional']
+        for activation_function in hyperparameter_values['activation_function']
+        for gradient_clipping in hyperparameter_values['gradient_clipping']
+        for optimizer_type in hyperparameter_values['optimizer']
     ]
 
     # Limit to half available CPUs
