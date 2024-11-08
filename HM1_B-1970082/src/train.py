@@ -221,14 +221,23 @@ def train_model(embedding_dim=100, hidden_dim=128, num_layers=1, batch_size=32, 
     torch.cuda.empty_cache()
     gc.collect()
 
+    # Clear console after training completes
+    os.system('cls' if os.name == 'nt' else 'clear')
+
 
 def process_training(params):
-    embedding_dim, hidden_dim, num_layers, batch_size, num_epochs, max_len, learning_rate, weight_decay, dropout_rate, bidirectional, activation_function, gradient_clipping, optimizer_type, output_dim = params  # added output_dim
+    embedding_dim, hidden_dim, num_layers, batch_size, num_epochs, max_len, learning_rate, weight_decay, dropout_rate, bidirectional, activation_function, gradient_clipping, optimizer_type, output_dim = params
 
     # Create a unique directory for each model
     model_dir = os.path.join(MODELS_DIR,
                              f'emb{embedding_dim}_hid{hidden_dim}_layers{num_layers}_ep{num_epochs}_len{max_len}_bs{batch_size}_lr{learning_rate}_wd{weight_decay}_dropout{dropout_rate}_bidirectional{bidirectional}')
     os.makedirs(model_dir, exist_ok=True)
+
+    # Check if the model file exists; if so, skip this configuration
+    model_file_path = os.path.join(model_dir, 'model.pth')
+    if os.path.exists(model_file_path):
+        print(f"Model already trained for parameters {params}. Skipping...")
+        return
 
     # Save hyperparameters
     save_hyperparams({
@@ -246,6 +255,9 @@ def process_training(params):
         'gradient_clipping': gradient_clipping,
         'optimizer': optimizer_type
     }, model_dir)
+
+    # Print a message indicating which training is running
+    print(f"Starting training with parameters: {params}")
 
     # Train the model
     train_model(
