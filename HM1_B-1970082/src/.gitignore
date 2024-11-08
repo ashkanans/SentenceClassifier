@@ -1,1 +1,56 @@
+# Python-related files
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+*.db
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Environment files
+.env
+.venv/
+venv/
+env/
+env.bak/
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
+
+# Model artifacts and outputs
+trained_models/
+model.pth
+vocab.pkl
+metrics.json
+hyperparams.json
+
+# Log files
+*.log
+logs/
+
+# IDE specific files
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.vscode/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Miscellaneous
+*.csv
+*.jsonl
 *.json
+*.pickle
+*.pkl
