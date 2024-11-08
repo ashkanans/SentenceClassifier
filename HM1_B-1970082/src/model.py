@@ -3,8 +3,7 @@ import torch.nn as nn
 
 
 class LSTMClassifier(nn.Module):
-    def __init__(self, vocab_size, embedding_dim, hidden_dim, output_dim, padding_idx, bidirectional=False,
-                 num_layers=2, dropout_rate=0.5):
+    def __init__(self, vocab_size, embedding_dim, hidden_dim, output_dim, padding_idx, bidirectional=False):
         """
         Initialize the LSTM-based text classifier model.
         Args:
@@ -14,20 +13,16 @@ class LSTMClassifier(nn.Module):
             output_dim: Number of output classes (e.g., 2 for binary classification).
             padding_idx: Index for the padding token to be ignored in embedding.
             bidirectional: Whether the LSTM should be bidirectional.
-            num_layers: Number of LSTM layers for increased depth.
-            dropout_rate: Dropout rate for regularization.
         """
         super(LSTMClassifier, self).__init__()
 
         # Embedding layer with padding
         self.embedding = nn.Embedding(vocab_size, embedding_dim, padding_idx=padding_idx)
 
-        # LSTM layer with additional layers and dropout for regularization
+        # LSTM layer with dropout for regularization
         self.lstm = nn.LSTM(
             embedding_dim,
             hidden_dim,
-            num_layers=num_layers,
-            dropout=dropout_rate if num_layers > 1 else 0,
             batch_first=True,
             bidirectional=bidirectional
         )
@@ -39,7 +34,7 @@ class LSTMClassifier(nn.Module):
         self.fc = nn.Linear(lstm_output_dim, output_dim)
 
         # Dropout for the embedding layer and hidden layer output
-        self.dropout = nn.Dropout(dropout_rate)
+        self.dropout = nn.Dropout(0.5)
 
         # Initialization of weights
         self._init_weights()
